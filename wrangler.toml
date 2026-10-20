@@ -8,15 +8,15 @@ crons = ["*/15 * * * *"]
 # Create with: npx wrangler kv namespace create DATA   (paste the returned id)
 [[kv_namespaces]]
 binding = "DATA"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "2f7733db7231474992460b0baa174620"
 
 [vars]
 # Comma-separated browser origins allowed to call the worker (empty or "*" = all).
-ALLOWED_ORIGINS = "https://cgreg21.github.io"
+ALLOWED_ORIGINS = "*"
 # Comma-separated upstream https origins the proxy may reach (empty = any).
 ALLOWED_UPSTREAMS = ""
 # Raw base64url VAPID public key (npm run vapid).
-VAPID_PUBLIC_KEY = ""
+VAPID_PUBLIC_KEY = "BAm5kQ8xABRtA1DaNaH4oLCGbHi7a8ldWbnrO8B-Vjc3ihzLNwijPKau853sNdApozJpazz9QbUU6avZ6BONqlQ"
 # Contact for the push services (mailto: or https: URL).
-VAPID_SUBJECT = "mailto:admin@example.com"
+VAPID_SUBJECT = "mailto:cgreg21@gmail.com"
 # Secrets (never in this file): VAPID_PRIVATE_JWK
