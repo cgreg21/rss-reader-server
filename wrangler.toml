@@ -1,0 +1,22 @@
+name = "rss-reader-server"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+# Create with: npx wrangler kv namespace create DATA   (paste the returned id)
+[[kv_namespaces]]
+binding = "DATA"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+# Comma-separated browser origins allowed to call the worker (empty or "*" = all).
+ALLOWED_ORIGINS = "https://cgreg21.github.io"
+# Comma-separated upstream https origins the proxy may reach (empty = any).
+ALLOWED_UPSTREAMS = ""
+# Raw base64url VAPID public key (npm run vapid).
+VAPID_PUBLIC_KEY = ""
+# Contact for the push services (mailto: or https: URL).
+VAPID_SUBJECT = "mailto:admin@example.com"
+# Secrets (never in this file): VAPID_PRIVATE_JWK
