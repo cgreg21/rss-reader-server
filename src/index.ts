@@ -6,7 +6,7 @@ import { handleSync } from './sync';
 const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Upstream, Accept, If-None-Match';
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: ExecutionContext): Promise<Response> {
     const origin = request.headers.get('Origin');
     const allowedOrigins = list(env.ALLOWED_ORIGINS);
     const allowAll = allowedOrigins.length === 0 || allowedOrigins.includes('*');
@@ -22,7 +22,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     const path = new URL(request.url).pathname;
-    if (path === '/sync') return handleSync(request, env, cors);
+    if (path === '/sync') return handleSync(request, env, cors, ctx);
     const pushed = await handlePush(request, env, cors, path);
     if (pushed) return pushed;
     return proxy(request, env, cors);
