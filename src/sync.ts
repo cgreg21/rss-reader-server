@@ -12,8 +12,16 @@ export interface SyncDocument {
 const json = (cors: Headers, status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: new Headers({ ...Object.fromEntries(cors), 'Content-Type': 'application/json' }) });
 
+/** GET /sync/ws?token=... (WebSocket upgrade): joins the room of that sync code. */
+export async function handleSocket(request: Request, env: Env): Promise<Response> {
+  const token = new URL(request.url).searchParams.get('token') ?? '';
+  if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
+  if (token.length < 16 || !env.SYNC_ROOM) return new Response('Sync code required', { status: 401 });
+  return env.SYNC_ROOM.get(env.SYNC_ROOM.idFromName(`sync:${await sha256(token)}`)).fetch(request);
+}
+
 /**
- * GET /sync            -> { rev, data } (404 when nothing is stored)
+ * GET /sync              -> { rev, data } (404 when nothing is stored)
  * PUT /sync {rev,data} -> stores; 409 with the current document when `rev` is not the stored one
  * The bearer token is the user's sync code: only its SHA-256 is used as the KV key.
  */
@@ -42,5 +50,9 @@ export async function handleSync(request: Request, env: Env, cors: Headers): Pro
   if (current && body.rev !== current.rev) return json(cors, 409, current);
   const next: SyncDocument = { rev: Math.max(Date.now(), (current?.rev ?? 0) + 1), data: body.data };
   await env.DATA.put(id, JSON.stringify(next));
+  if (env.SYNC_ROOM) {
+    const room = env.SYNC_ROOM.get(env.SYNC_ROOM.idFromName(id));
+    await room.fetch('https://room/notify').catch(() => undefined);
+  }
   return json(cors, 200, { rev: next.rev });
 }

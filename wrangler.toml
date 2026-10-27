@@ -10,6 +10,14 @@ crons = ["*/15 * * * *"]
 binding = "DATA"
 id = "2f7733db7231474992460b0baa174620"
 
+[[durable_objects.bindings]]
+name = "SYNC_ROOM"
+class_name = "SyncRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["SyncRoom"]
+
 [vars]
 # Comma-separated browser origins allowed to call the worker (empty or "*" = all).
 ALLOWED_ORIGINS = "*"

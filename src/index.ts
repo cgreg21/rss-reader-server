@@ -1,7 +1,9 @@
 import { Env, list } from './env';
 import { checkFeeds, handlePush } from './push';
 import { proxy } from './proxy';
-import { handleSync } from './sync';
+import { handleSocket, handleSync } from './sync';
+
+export { SyncRoom } from './room';
 
 const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Upstream, Accept, If-None-Match';
 
@@ -22,6 +24,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
 
     const path = new URL(request.url).pathname;
+    if (path === '/sync/ws') return handleSocket(request, env);
     if (path === '/sync') return handleSync(request, env, cors);
     const pushed = await handlePush(request, env, cors, path);
     if (pushed) return pushed;

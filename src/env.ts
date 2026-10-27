@@ -1,5 +1,6 @@
 export interface Env {
   DATA: KVNamespace;
+  SYNC_ROOM: DurableObjectNamespace;
   ALLOWED_ORIGINS?: string;
   ALLOWED_UPSTREAMS?: string;
   VAPID_PUBLIC_KEY?: string;
