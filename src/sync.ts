@@ -12,13 +12,8 @@ export interface SyncDocument {
 const json = (cors: Headers, status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: new Headers({ ...Object.fromEntries(cors), 'Content-Type': 'application/json' }) });
 
-/** GET /sync/ws?token=... (WebSocket upgrade): joins the room of that sync code. */
-export async function handleSocket(request: Request, env: Env): Promise<Response> {
-  const token = new URL(request.url).searchParams.get('token') ?? '';
-  if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
-  if (token.length < 16 || !env.SYNC_ROOM) return new Response('Sync code required', { status: 401 });
-  return env.SYNC_ROOM.get(env.SYNC_ROOM.idFromName(`sync:${await sha256(token)}`)).fetch(request);
-}
+/** Storage key and notification room of a sync code. */
+export const roomFor = async (token: string): Promise<string> => `sync:${await sha256(token)}`;
 
 /**
  * GET /sync              -> { rev, data } (404 when nothing is stored)
@@ -28,7 +23,7 @@ export async function handleSocket(request: Request, env: Env): Promise<Response
 export async function handleSync(request: Request, env: Env, cors: Headers): Promise<Response> {
   const token = /^Bearer (.{16,200})$/.exec(request.headers.get('Authorization') ?? '')?.[1];
   if (!token) return json(cors, 401, { error: 'Bearer sync code (16+ characters) required' });
-  const id = `sync:${await sha256(token)}`;
+  const id = await roomFor(token);
   const current = await env.DATA.get<SyncDocument>(id, 'json');
 
   if (request.method === 'GET') return current ? json(cors, 200, current) : json(cors, 404, { error: 'Nothing stored' });
@@ -51,9 +46,6 @@ export async function handleSync(request: Request, env: Env, cors: Headers): Pro
   if (current && JSON.stringify(current.data) === JSON.stringify(body.data)) return json(cors, 200, { rev: current.rev });
   const next: SyncDocument = { rev: Math.max(Date.now(), (current?.rev ?? 0) + 1), data: body.data };
   await env.DATA.put(id, JSON.stringify(next));
-  if (env.SYNC_ROOM) {
-    const room = env.SYNC_ROOM.get(env.SYNC_ROOM.idFromName(id));
-    await room.fetch('https://room/notify').catch(() => undefined);
-  }
+  env.notify?.(id);
   return json(cors, 200, { rev: next.rev });
 }

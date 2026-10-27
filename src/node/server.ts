@@ -2,8 +2,9 @@ import { createServer, IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
 
-import { Env, sha256 } from '../env';
+import { Env } from '../env';
 import { handleRequest } from '../handler';
+import { roomFor } from '../sync';
 import { checkFeeds } from '../push';
 import { FileStore, RedisStore } from './store';
 
@@ -20,15 +21,7 @@ const env: Env = {
     process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
       ? new RedisStore(process.env.UPSTASH_REDIS_REST_URL, process.env.UPSTASH_REDIS_REST_TOKEN)
       : new FileStore(process.env.DATA_FILE ?? 'data.json'),
-  SYNC_ROOM: {
-    idFromName: (name) => name,
-    get: (id) => ({
-      fetch: async () => {
-        broadcast(String(id));
-        return new Response('ok');
-      },
-    }),
-  },
+  notify: broadcast,
   ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
   ALLOWED_UPSTREAMS: process.env.ALLOWED_UPSTREAMS,
   VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY,
@@ -77,8 +70,7 @@ server.on('upgrade', (req, socket, head) => {
     socket.destroy();
     return;
   }
-  void sha256(token).then((hash) => {
-    const room = `sync:${hash}`;
+  void roomFor(token).then((room) => {
     sockets.handleUpgrade(req, socket, head, (ws) => {
       const members = rooms.get(room) ?? new Set<WebSocket>();
       members.add(ws);

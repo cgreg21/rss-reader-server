@@ -1,68 +1,54 @@
 # rss-reader-server
 
-Cloudflare Worker (TypeScript) for [rss-reader](https://github.com/cgreg21/rss-reader). One worker, three features:
+Node.js server (TypeScript, run with `tsx`) for [rss-reader](https://github.com/cgreg21/rss-reader), hosted on Render. One server, three features:
 
 | Feature | Endpoint | Purpose |
 |---|---|---|
 | CORS proxy | any other path, header `X-Upstream: https://host` | Fetch feeds that send no CORS headers |
-| Web Push | `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe`, cron every 15 min | Notify new articles even when the app is closed |
-| Sync | `GET/PUT/DELETE /sync` (Bearer sync code) | Share feeds, categories, read/favourite state between devices |
-
-## Alternative : hébergement Node.js (Render)
-
-Le même code tourne comme serveur Node (`npm start`, `src/node/server.ts`) : proxy, synchro, WebSocket (`ws`) et vérification des flux toutes les 15 min dans le processus.
-
-1. Render → New → Blueprint, choisir ce dépôt (`render.yaml`), ou un Web Service Node (build `npm ci`, start `npm start`).
-2. Variables d'environnement : `VAPID_PRIVATE_JWK` (secret), `ALLOWED_ORIGINS`, `ALLOWED_UPSTREAMS`, et le stockage persistant : `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (base Redis gratuite sur upstash.com). Sans elles, un fichier local est utilisé, perdu à chaque redémarrage sur l'offre gratuite.
-3. Le service gratuit s'endort après ~15 min sans requête (le WebSocket et la vérification des flux s'arrêtent) : faire pinguer `/health` toutes les 10 min (UptimeRobot, cron-job.org).
-4. Dans l'app, mettre l'URL Render comme adresse du proxy.
+| Web Push | `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe`, feed check every 15 min | Notify new articles even when the app is closed |
+| Sync | `GET/PUT/DELETE /sync` (bearer sync code), WebSocket `/sync/ws?token=<code>` | Share feeds, categories, read/favourite state between devices; sockets receive `changed` after each update |
+| Health | `GET /health` | Liveness check / keep-alive ping |
 
 ## Prerequisites
 
-Node 22+, a free Cloudflare account, this repo on GitHub.
+Node 22+, a free Render account, this repo on GitHub. Optional: a free Upstash Redis database for persistent storage.
 
 ## Configuration
 
 1. `npm ci`
-2. Log in: `npx wrangler login`
-3. Create the KV namespace and paste its id into `wrangler.toml` (`[[kv_namespaces]] id`):
-   `npx wrangler kv namespace create DATA`
-4. Generate VAPID keys: `npm run vapid`
-   - put `VAPID_PUBLIC_KEY` in `wrangler.toml` `[vars]`
-   - store the private key: `npx wrangler secret put VAPID_PRIVATE_JWK` (paste the JSON)
-5. Edit `[vars]` in `wrangler.toml`:
-   - `ALLOWED_ORIGINS`: app origin(s), e.g. `https://cgreg21.github.io` (empty or `*` = any)
-   - `ALLOWED_UPSTREAMS`: optional allow-list of feed origins for the proxy
-   - `VAPID_SUBJECT`: `mailto:you@example.com`
+2. Generate VAPID keys: `npm run vapid` (prints `VAPID_PUBLIC_KEY` and the private JWK JSON).
+3. Environment variables:
+   - `PORT`: listening port (default `8787`; set by Render).
+   - `ALLOWED_ORIGINS`: app origin(s), e.g. `https://cgreg21.github.io` (empty or `*` = any).
+   - `ALLOWED_UPSTREAMS`: optional allow-list of feed origins for the proxy.
+   - `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_JWK` (secret, the JSON), `VAPID_SUBJECT` (`mailto:you@example.com`).
+   - `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`: persistent storage in Upstash Redis.
+   - `DATA_FILE`: local JSON file used when Redis is not configured (default `data.json`). On Render's free tier it is lost at every restart.
 
-Local run: copy secrets into `.dev.vars` (git-ignored), then `npm run dev`.
+Local run: `npm run dev` (watch mode) or `npm start`.
 
-## Deployment
+## Deployment (Render)
 
-Manual: `npm run deploy`. The worker URL is `https://rss-reader-server.<account>.workers.dev`.
+1. Render > New > Blueprint, pick this repo (`render.yaml`), or create a Node Web Service (build `npm ci`, start `npm start`).
+2. Set the environment variables above (`VAPID_PRIVATE_JWK` and the Upstash token as secrets).
+3. Render redeploys automatically on every push to the default branch.
+4. The free service sleeps after ~15 min without requests (WebSockets and the feed check stop): ping `/health` every 10 min (UptimeRobot, cron-job.org).
 
-GitHub Actions (`.github/workflows`):
-- `ci.yml`: typecheck + tests on every push/PR.
-- `deploy.yml`: tests then `wrangler deploy` on push to `master` or manually.
-
-Repository secrets (Settings > Secrets and variables > Actions):
-- `CLOUDFLARE_API_TOKEN`: token created from the "Edit Cloudflare Workers" template (add Workers KV Storage: Edit)
-- `CLOUDFLARE_ACCOUNT_ID`: shown in the Cloudflare dashboard
-- `VAPID_PRIVATE_JWK`: the private JWK JSON from step 4
+GitHub Actions: `ci.yml` runs typecheck + tests on every push/PR.
 
 ## App settings
 
-In rss-reader > Feeds page: enter the worker URL as proxy URL (enable the proxy) and as the notifications server URL, then enable notifications. On iOS (16.4+) the app must be installed on the Home Screen.
+In rss-reader > Feeds page: enter the Render URL as proxy URL (enable the proxy) and as the notifications server URL, then enable notifications. On iOS (16.4+) the app must be installed on the Home Screen.
 
 ## API details
 
-- Proxy: request `https://<worker><path><query>` with `X-Upstream: https://feeds.example.com`. Cookies are never forwarded.
+- Proxy: request `https://<server><path><query>` with `X-Upstream: https://feeds.example.com`. Cookies are never forwarded.
 - `POST /subscribe` `{ subscription, feeds: [urls] }`; `POST /unsubscribe` `{ endpoint }`.
-- `/sync`: `Authorization: Bearer <sync code, 16+ chars>`. `GET` returns `{ rev, data }`; `PUT { rev, data }` returns `{ rev }` or `409` with the current document when `rev` is stale (first write: omit `rev`). Only the SHA-256 of the code is used as KV key; keep the code secret. Max 2 MB.
+- `/sync`: `Authorization: Bearer <sync code, 16+ chars>`. `GET` returns `{ rev, data }`; `PUT { rev, data }` returns `{ rev }` or `409` with the current document when `rev` is stale (first write: omit `rev`). Identical data is not rewritten. Only the SHA-256 of the code is used as storage key; keep the code secret. Max 2 MB.
 
 ## Limits
 
-- Cron checks at most 40 distinct feeds per run (subrequest limit); first sight of a feed only records its items.
+- Each check handles at most 40 distinct feeds; first sight of a feed only records its items.
 - Dead subscriptions (404/410) are removed automatically.
-- Feed parsing is regex-based (no DOMParser in Workers).
+- Feed parsing is regex-based.
 - Sync is last-writer-wins on the whole document; the client must merge on 409.

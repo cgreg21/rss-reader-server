@@ -1,11 +1,11 @@
 import { Env, list } from './env';
 import { handlePush } from './push';
 import { proxy } from './proxy';
-import { handleSocket, handleSync } from './sync';
+import { handleSync } from './sync';
 
 const ALLOWED_HEADERS = 'Content-Type, Authorization, X-Upstream, Accept, If-None-Match';
 
-/** Platform-neutral request handler, shared by the Cloudflare Worker and the Node server. */
+/** Fetch-style request handler used by the Node server (WebSocket upgrades are handled there). */
 export async function handleRequest(request: Request, env: Env): Promise<Response> {
   const origin = request.headers.get('Origin');
   const allowedOrigins = list(env.ALLOWED_ORIGINS);
@@ -23,7 +23,7 @@ export async function handleRequest(request: Request, env: Env): Promise<Respons
 
   const path = new URL(request.url).pathname;
   if (path === '/health') return new Response('ok', { headers: cors });
-  if (path === '/sync/ws') return handleSocket(request, env);
+  if (path === '/sync/ws') return new Response('Expected WebSocket', { status: 426, headers: cors });
   if (path === '/sync') return handleSync(request, env, cors);
   const pushed = await handlePush(request, env, cors, path);
   if (pushed) return pushed;

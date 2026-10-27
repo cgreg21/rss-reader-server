@@ -1,4 +1,4 @@
-/** The subset of Workers KV the code uses; the Node server implements it over Redis or a file. */
+/** Minimal key-value store (implemented over Redis or a file in src/node/store.ts). */
 export interface KeyValueStore {
   get<T = unknown>(key: string, type: 'json'): Promise<T | null>;
   put(key: string, value: string): Promise<void>;
@@ -6,15 +6,10 @@ export interface KeyValueStore {
   list(options: { prefix: string; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
-/** Stand-in for the SyncRoom Durable Object namespace (also implemented in memory by the Node server). */
-export interface SyncRooms {
-  idFromName(name: string): unknown;
-  get(id: unknown): { fetch(input: string | Request): Promise<Response> };
-}
-
 export interface Env {
   DATA: KeyValueStore;
-  SYNC_ROOM?: SyncRooms;
+  /** Called after a sync document changed; `room` is `roomFor(token)`. */
+  notify?: (room: string) => void;
   ALLOWED_ORIGINS?: string;
   ALLOWED_UPSTREAMS?: string;
   VAPID_PUBLIC_KEY?: string;
@@ -32,7 +27,7 @@ export const toBase64Url = (bytes: ArrayBuffer | Uint8Array): string => {
   return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 };
 
-export const fromBase64Url = (value: string): Uint8Array => {
+export const fromBase64Url = (value: string): Uint8Array<ArrayBuffer> => {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 };

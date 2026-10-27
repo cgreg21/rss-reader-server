@@ -3,22 +3,19 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Cloudflare Worker for rss-reader: CORS proxy, Web Push notifications and synchronisation",
+  "description": "Node.js server for rss-reader: CORS proxy, Web Push notifications and synchronisation",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "tsx watch src/node/server.ts",
     "start": "tsx src/node/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "vapid": "node scripts/generate-vapid.mjs",
-    "deploy": "wrangler deploy"
+    "vapid": "node scripts/generate-vapid.mjs"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^5.20261019.1",
     "@types/node": "^26.6.5",
     "@types/ws": "^8.18.2",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "wrangler": "^4.0.0"
+    "vitest": "^2.1.0"
   },
   "dependencies": {
     "tsx": "^4.23.15",

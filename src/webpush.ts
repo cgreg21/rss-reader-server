@@ -11,8 +11,10 @@ export interface VapidConfig {
   subject: string;
 }
 
+type Bytes = Uint8Array<ArrayBuffer>;
+
 const encoder = new TextEncoder();
-const concat = (...parts: Uint8Array[]): Uint8Array => {
+const concat = (...parts: Bytes[]): Bytes => {
   const out = new Uint8Array(parts.reduce((sum, part) => sum + part.length, 0));
   let offset = 0;
   for (const part of parts) {
@@ -22,19 +24,19 @@ const concat = (...parts: Uint8Array[]): Uint8Array => {
   return out;
 };
 
-async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
+async function hkdf(salt: Bytes, ikm: Bytes, info: Bytes, length: number): Promise<Bytes> {
   const key = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, key, length * 8));
 }
 
 /** RFC 8291 aes128gcm encryption of a payload for one subscription. */
-export async function encrypt(subscription: PushSubscriptionJson, payload: string): Promise<Uint8Array> {
+export async function encrypt(subscription: PushSubscriptionJson, payload: string): Promise<Bytes> {
   const clientPublic = fromBase64Url(subscription.keys.p256dh);
   const auth = fromBase64Url(subscription.keys.auth);
   const local = (await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits'])) as CryptoKeyPair;
   const localPublic = new Uint8Array((await crypto.subtle.exportKey('raw', local.publicKey)) as ArrayBuffer);
   const clientKey = await crypto.subtle.importKey('raw', clientPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: clientKey } as unknown as SubtleCryptoDeriveKeyAlgorithm, local.privateKey, 256));
+  const shared = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: clientKey }, local.privateKey, 256));
 
   const ikm = await hkdf(auth, shared, concat(encoder.encode('WebPush: info\0'), clientPublic, localPublic), 32);
   const salt = crypto.getRandomValues(new Uint8Array(16));

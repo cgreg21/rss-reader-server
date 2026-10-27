@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { parseFeed } from '../src/feed';
 import { encrypt } from '../src/webpush';
-import worker from '../src/index';
-import { fromBase64Url, toBase64Url } from '../src/env';
+import { handleRequest } from '../src/handler';
+import { roomFor } from '../src/sync';
+import { Env, fromBase64Url, KeyValueStore, toBase64Url } from '../src/env';
 
 const kv = () => {
   const map = new Map<string, string>();
-  return {
+  const store = {
+    writes: 0,
     get: async (key: string, type?: string) => (map.has(key) ? (type === 'json' ? JSON.parse(map.get(key)!) : map.get(key)) : null),
-    put: async (key: string, value: string) => void map.set(key, value),
+    put: async (key: string, value: string) => {
+      store.writes++;
+      map.set(key, value);
+    },
     delete: async (key: string) => void map.delete(key),
     list: async () => ({ keys: [], list_complete: true }),
-  } as unknown as KVNamespace;
+  };
+  return store as unknown as KeyValueStore & { writes: number };
 };
 
 describe('feed', () => {
@@ -34,10 +40,26 @@ describe('webpush', () => {
   });
 });
 
-describe('worker', () => {
-  const env = { DATA: kv(), ALLOWED_ORIGINS: 'https://app.test' };
+describe('server', () => {
+  const notified: string[] = [];
+  const data = kv();
+  const env: Env = { DATA: data, ALLOWED_ORIGINS: 'https://app.test', notify: (room) => void notified.push(room) };
   const call = (path: string, init: RequestInit = {}, origin = 'https://app.test') =>
-    worker.fetch(new Request(`https://w.test${path}`, { ...init, headers: { Origin: origin, ...(init.headers as object) } }), env as never);
+    handleRequest(new Request(`https://w.test${path}`, { ...init, headers: { Origin: origin, ...(init.headers as object) } }), env);
+
+  it('notifies the room on change and skips identical writes', async () => {
+    const token = 'notify-test-code-0123456789';
+    const headers = { Authorization: `Bearer ${token}` };
+    notified.length = 0;
+    const put = await call('/sync', { method: 'PUT', headers, body: JSON.stringify({ data: { x: 1 } }) });
+    const { rev } = (await put.json()) as { rev: number };
+    expect(notified).toEqual([await roomFor(token)]);
+    const writes = data.writes;
+    const again = await call('/sync', { method: 'PUT', headers, body: JSON.stringify({ rev, data: { x: 1 } }) });
+    expect(await again.json()).toEqual({ rev });
+    expect(data.writes).toBe(writes);
+    expect(notified).toHaveLength(1);
+  });
 
   it('rejects other origins', async () => {
     expect((await call('/x', {}, 'https://evil.test')).status).toBe(403);
