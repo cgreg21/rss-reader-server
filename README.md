@@ -8,6 +8,15 @@ Cloudflare Worker (TypeScript) for [rss-reader](https://github.com/cgreg21/rss-r
 | Web Push | `GET /vapid-key`, `POST /subscribe`, `POST /unsubscribe`, cron every 15 min | Notify new articles even when the app is closed |
 | Sync | `GET/PUT/DELETE /sync` (Bearer sync code) | Share feeds, categories, read/favourite state between devices |
 
+## Alternative : hébergement Node.js (Render)
+
+Le même code tourne comme serveur Node (`npm start`, `src/node/server.ts`) : proxy, synchro, WebSocket (`ws`) et vérification des flux toutes les 15 min dans le processus.
+
+1. Render → New → Blueprint, choisir ce dépôt (`render.yaml`), ou un Web Service Node (build `npm ci`, start `npm start`).
+2. Variables d'environnement : `VAPID_PRIVATE_JWK` (secret), `ALLOWED_ORIGINS`, `ALLOWED_UPSTREAMS`, et le stockage persistant : `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (base Redis gratuite sur upstash.com). Sans elles, un fichier local est utilisé, perdu à chaque redémarrage sur l'offre gratuite.
+3. Le service gratuit s'endort après ~15 min sans requête (le WebSocket et la vérification des flux s'arrêtent) : faire pinguer `/health` toutes les 10 min (UptimeRobot, cron-job.org).
+4. Dans l'app, mettre l'URL Render comme adresse du proxy.
+
 ## Prerequisites
 
 Node 22+, a free Cloudflare account, this repo on GitHub.

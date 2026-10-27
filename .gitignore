@@ -4,3 +4,5 @@ node_modules
 vapid-keys.json
 
 .idea/
+
+data.json

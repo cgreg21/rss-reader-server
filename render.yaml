@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: rss-reader-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: VAPID_PUBLIC_KEY
+        value: BAm5kQ8xABRtA1DaNaH4oLCGbHi7a8ldWbnrO8B-Vjc3ihzLNwijPKau853sNdApozJpazz9QbUU6avZ6BONqlQ
+      - key: VAPID_SUBJECT
+        value: mailto:cgreg21@gmail.com
+      - key: VAPID_PRIVATE_JWK
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

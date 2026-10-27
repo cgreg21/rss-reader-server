@@ -6,6 +6,7 @@
   "description": "Cloudflare Worker for rss-reader: CORS proxy, Web Push notifications and synchronisation",
   "scripts": {
     "dev": "wrangler dev",
+    "start": "tsx src/node/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "vapid": "node scripts/generate-vapid.mjs",
@@ -13,8 +14,14 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261019.1",
+    "@types/node": "^26.6.5",
+    "@types/ws": "^8.18.2",
     "typescript": "^5.6.0",
     "vitest": "^2.1.0",
     "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "tsx": "^4.23.15",
+    "ws": "^8.22.0"
   }
 }

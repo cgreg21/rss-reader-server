@@ -1,6 +1,20 @@
+/** The subset of Workers KV the code uses; the Node server implements it over Redis or a file. */
+export interface KeyValueStore {
+  get<T = unknown>(key: string, type: 'json'): Promise<T | null>;
+  put(key: string, value: string): Promise<void>;
+  delete(key: string): Promise<void>;
+  list(options: { prefix: string; cursor?: string }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
+}
+
+/** Stand-in for the SyncRoom Durable Object namespace (also implemented in memory by the Node server). */
+export interface SyncRooms {
+  idFromName(name: string): unknown;
+  get(id: unknown): { fetch(input: string | Request): Promise<Response> };
+}
+
 export interface Env {
-  DATA: KVNamespace;
-  SYNC_ROOM: DurableObjectNamespace;
+  DATA: KeyValueStore;
+  SYNC_ROOM?: SyncRooms;
   ALLOWED_ORIGINS?: string;
   ALLOWED_UPSTREAMS?: string;
   VAPID_PUBLIC_KEY?: string;
