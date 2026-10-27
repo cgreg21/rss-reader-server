@@ -48,6 +48,7 @@ export async function handleSync(request: Request, env: Env, cors: Headers): Pro
   }
   if (body.data === undefined) return json(cors, 400, { error: 'Missing data' });
   if (current && body.rev !== current.rev) return json(cors, 409, current);
+  if (current && JSON.stringify(current.data) === JSON.stringify(body.data)) return json(cors, 200, { rev: current.rev });
   const next: SyncDocument = { rev: Math.max(Date.now(), (current?.rev ?? 0) + 1), data: body.data };
   await env.DATA.put(id, JSON.stringify(next));
   if (env.SYNC_ROOM) {
