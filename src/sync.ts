@@ -1,5 +1,4 @@
 import { Env, sha256 } from './env';
-import { notifySync } from './push';
 
 const MAX_BYTES = 2 * 1024 * 1024;
 
@@ -18,7 +17,7 @@ const json = (cors: Headers, status: number, body: unknown) =>
  * PUT /sync {rev,data} -> stores; 409 with the current document when `rev` is not the stored one
  * The bearer token is the user's sync code: only its SHA-256 is used as the KV key.
  */
-export async function handleSync(request: Request, env: Env, cors: Headers, ctx?: ExecutionContext): Promise<Response> {
+export async function handleSync(request: Request, env: Env, cors: Headers): Promise<Response> {
   const token = /^Bearer (.{16,200})$/.exec(request.headers.get('Authorization') ?? '')?.[1];
   if (!token) return json(cors, 401, { error: 'Bearer sync code (16+ characters) required' });
   const id = `sync:${await sha256(token)}`;
@@ -33,7 +32,7 @@ export async function handleSync(request: Request, env: Env, cors: Headers, ctx?
 
   const text = await request.text();
   if (text.length > MAX_BYTES) return json(cors, 413, { error: 'Document too large' });
-  let body: { rev?: number; data?: unknown; from?: string };
+  let body: { rev?: number; data?: unknown };
   try {
     body = JSON.parse(text);
   } catch {
@@ -43,8 +42,5 @@ export async function handleSync(request: Request, env: Env, cors: Headers, ctx?
   if (current && body.rev !== current.rev) return json(cors, 409, current);
   const next: SyncDocument = { rev: Math.max(Date.now(), (current?.rev ?? 0) + 1), data: body.data };
   await env.DATA.put(id, JSON.stringify(next));
-  const wake = notifySync(env, await sha256(token), typeof body.from === 'string' ? body.from : undefined);
-  if (ctx) ctx.waitUntil(wake);
-  else await wake;
   return json(cors, 200, { rev: next.rev });
 }

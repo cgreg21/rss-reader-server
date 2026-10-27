@@ -6,8 +6,6 @@ interface Record {
   subscription: PushSubscriptionJson;
   feeds: string[];
   seen: { [url: string]: string[] };
-  /** Hash of the sync token of the library this device belongs to, to wake its other devices. */
-  group?: string;
 }
 
 const MAX_FEEDS_PER_RUN = 40;
@@ -48,33 +46,9 @@ export async function handlePush(request: Request, env: Env, cors: Headers, path
   const previous = await env.DATA.get<Record>(id, 'json');
   const seen: Record['seen'] = {};
   for (const url of feeds) if (previous?.seen[url]) seen[url] = previous.seen[url];
-  const token = /^Bearer (.{16,})$/.exec(request.headers.get('Authorization') ?? '')?.[1];
-  const group = token ? await sha256(token) : undefined;
-  const record: Record = { subscription: { endpoint: sub.endpoint, keys: sub.keys }, feeds, seen, ...(group ? { group } : {}) };
+  const record: Record = { subscription: { endpoint: sub.endpoint, keys: sub.keys }, feeds, seen };
   await env.DATA.put(id, JSON.stringify(record));
   return json(cors, 200, { ok: true, feeds: feeds.length });
-}
-
-async function vapidOf(env: Env): Promise<VapidConfig | null> {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_JWK) return null;
-  return { publicKey: env.VAPID_PUBLIC_KEY, privateJwk: env.VAPID_PRIVATE_JWK, subject: env.VAPID_SUBJECT ?? 'mailto:admin@example.com' };
-}
-
-/** Sends a silent push to the other devices of a synchronised library so they pull the new document. */
-export async function notifySync(env: Env, group: string, fromEndpoint: string | undefined): Promise<void> {
-  const vapid = await vapidOf(env);
-  if (!vapid) return;
-  let cursor: string | undefined;
-  do {
-    const page = await env.DATA.list({ prefix: 'sub:', cursor });
-    for (const entry of page.keys) {
-      const record = await env.DATA.get<Record>(entry.name, 'json');
-      if (!record || record.group !== group || record.subscription.endpoint === fromEndpoint) continue;
-      const status = await sendPush(record.subscription, { sync: true }, vapid).catch(() => 0);
-      if (status === 404 || status === 410) await env.DATA.delete(entry.name);
-    }
-    cursor = page.list_complete ? undefined : page.cursor;
-  } while (cursor);
 }
 
 /** Cron: fetch the subscribed feeds, push the new items. The first sight of a feed only records its items. */
